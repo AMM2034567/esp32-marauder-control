@@ -26,6 +26,13 @@ void main() {
     expect(events.whereType<MachineEvent>().single.payload['status'], 'success');
   });
 
+  test('parses Marauder prompt without a trailing newline', () {
+    final events = <MarauderEvent>[];
+    final protocol = MarauderProtocol(onEvent: events.add);
+    protocol.addBytes(Uint8List.fromList('firmware ready\n> '.codeUnits));
+    expect(events.whereType<PromptEvent>(), hasLength(1));
+  });
+
   test('blocks dangerous commands in the catalog', () {
     expect(MarauderCommandCatalog.dangerous, contains('attack'));
     expect(MarauderCommandCatalog.dangerous, contains('evilportal'));

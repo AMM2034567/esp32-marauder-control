@@ -34,12 +34,25 @@ class MarauderProtocol {
   void addBytes(Uint8List bytes) {
     _buffer.addAll(bytes);
     while (_buffer.isNotEmpty) {
+      if (_buffer.length >= 2 && _buffer[0] == 0x3E && _buffer[1] == 0x20) {
+        _buffer.removeRange(0, 2);
+        onEvent?.call(const PromptEvent());
+        continue;
+      }
       final newline = _buffer.indexOf(0x0A);
       if (newline < 0) break;
       final lineBytes = _buffer.sublist(0, newline);
       _buffer.removeRange(0, newline + 1);
       final line = utf8.decode(lineBytes, allowMalformed: true).replaceAll('\r', '');
       _consumeLine(line);
+    }
+    _drainTrailingPrompt();
+  }
+
+  void _drainTrailingPrompt() {
+    if (_buffer.length >= 2 && _buffer[0] == 0x3E && _buffer[1] == 0x20) {
+      _buffer.removeRange(0, 2);
+      onEvent?.call(const PromptEvent());
     }
   }
 

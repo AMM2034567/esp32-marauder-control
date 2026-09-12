@@ -141,6 +141,9 @@ class MarauderSession {
 
   void _onProtocolEvent(MarauderEvent event) {
     _events.add(MarauderSessionEvent.protocol(event));
+    if (event case MachineEvent(:final payload)) {
+      if (payload['status'] == 'success' || payload['status'] == 'error') _finish();
+    }
     if (event case PromptEvent()) _finish();
   }
 

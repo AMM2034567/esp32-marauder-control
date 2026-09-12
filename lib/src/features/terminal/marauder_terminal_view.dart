@@ -91,7 +91,7 @@ class MarauderTerminalView extends StatelessWidget {
                   },
                   child: TextField(
                 controller: inputController,
-                enabled: connected && !operationLocked,
+                enabled: connected,
                 onSubmitted: onSubmitted,
                 style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace'),
                 cursorColor: Colors.greenAccent,

@@ -159,6 +159,9 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
       setState(() => _wifiScanState = WifiScanState.stopping);
     } else if (!_operationLocked) {
       _beginOperation('command');
+      future.whenComplete(() {
+        if (mounted && _activeOperation == 'command') _endOperation();
+      });
     }
     return future;
   }
@@ -171,7 +174,12 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
 
   Future<void> _stopWifiScan() async {
     if (!_stopAllowed) return;
-    await _sendCommand('stopscan', waitForPrompt: false);
+    try {
+      await _sendCommand('stopscan', waitForPrompt: false);
+    } finally {
+      _endOperation();
+      if (mounted) setState(() => _bluetoothScanning = false);
+    }
   }
 
   Future<void> _probeDevice() async {
@@ -181,20 +189,31 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
       _lastProbeError = null;
       _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.probing);
     });
-    _addLog('开始探测 Marauder 固件和命令能力');
-    await _sendCommand('protocolinfo --machine app_probe');
-    await _sendCommand('help');
-    await Future<void>.delayed(const Duration(milliseconds: 1500));
-    if (mounted) {
-      setState(() {
-        _probeInProgress = false;
-        if (_capabilities.firmwareVersion == null) {
-          _lastProbeError = '未从串口输出中识别固件版本';
-          _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.failed);
-        } else {
-          _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.ready);
-        }
-      });
+    try {
+      _addLog('开始探测 Marauder 固件和命令能力');
+      await _sendCommand('protocolinfo --machine app_probe');
+      await _sendCommand('help');
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() {
+          if (_capabilities.firmwareVersion == null) {
+            _lastProbeError = '未从串口输出中识别固件版本';
+            _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.failed);
+          } else {
+            _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.ready);
+          }
+        });
+      }
+    } catch (error) {
+      _addLog('固件探测失败：$error', isError: true);
+      if (mounted) {
+        setState(() => _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.failed));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _probeInProgress = false);
+        _endOperation();
+      }
     }
   }
 
