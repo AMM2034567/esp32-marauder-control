@@ -3,6 +3,7 @@ import 'package:material_3_expressive/material_3_expressive.dart';
 
 import '../../core/models/wifi_models.dart';
 import '../../core/models/radio_models.dart';
+import 'wifi_controller.dart';
 
 class WifiWorkbenchView extends StatelessWidget {
   const WifiWorkbenchView({
@@ -21,6 +22,10 @@ class WifiWorkbenchView extends StatelessWidget {
     required this.onRefresh,
     required this.onStop,
     required this.onApTap,
+    this.query = '',
+    this.sort = WifiSort.rssi,
+    this.onQueryChanged = _noopString,
+    this.onSortChanged = _noopSort,
   });
 
   final bool connected;
@@ -37,6 +42,13 @@ class WifiWorkbenchView extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onStop;
   final ValueChanged<WifiAccessPoint> onApTap;
+  final String query;
+  final WifiSort sort;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<WifiSort> onSortChanged;
+
+  static void _noopString(String _) {}
+  static void _noopSort(WifiSort _) {}
 
   @override
   Widget build(BuildContext context) {
@@ -70,29 +82,36 @@ class WifiWorkbenchView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: '搜索 SSID'), onChanged: onQueryChanged),
+        if (selectedTab == 0) DropdownButtonFormField<WifiSort>(
+          initialValue: sort,
+          decoration: const InputDecoration(labelText: '排序'),
+          items: const [
+            DropdownMenuItem(value: WifiSort.rssi, child: Text('RSSI')),
+            DropdownMenuItem(value: WifiSort.channel, child: Text('信道')),
+            DropdownMenuItem(value: WifiSort.name, child: Text('名称')),
+          ],
+          onChanged: (value) { if (value != null) onSortChanged(value); },
+        ),
+        const SizedBox(height: 8),
         if (selectedTab == 0) ..._apList(context),
         if (selectedTab == 1) ..._stationList(),
         if (selectedTab == 2) ..._ssidList(),
         if (selectedTab == 0 && detailApIndex != null && apDetails.isNotEmpty)
-          Card(
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              title: Text('AP $detailApIndex 详情'),
-              children: apDetails.map((line) => ListTile(dense: true, title: Text(line))).toList(),
-            ),
-          ),
+          Card(child: ExpansionTile(initiallyExpanded: true, title: Text('AP $detailApIndex 详情'), children: apDetails.map((line) => ListTile(dense: true, title: Text(line))).toList())),
       ],
     );
   }
 
   List<Widget> _apList(BuildContext context) {
+    final visible = const WifiController().filterAndSortAccessPoints(accessPoints, query: query, sort: sort);
     return [
-      Text('${accessPoints.length} 个 AP', style: Theme.of(context).textTheme.titleMedium),
+      Text('${visible.length} 个 AP', style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
-      if (accessPoints.isEmpty)
+      if (visible.isEmpty)
         const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('暂无 AP 数据，请先启动扫描或刷新列表。'))))
       else
-        ...accessPoints.map((ap) => Card(child: ListTile(
+        ...visible.map((ap) => Card(child: ListTile(
               leading: CircleAvatar(child: Text('${ap.channel}')),
               title: Text(ap.ssid.isEmpty ? '<隐藏 SSID>' : ap.ssid),
               subtitle: Text('索引 ${ap.index}${ap.selected ? ' · 已选择' : ''}'),

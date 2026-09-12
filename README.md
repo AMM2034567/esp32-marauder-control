@@ -4,7 +4,7 @@
 
 ## 首个 Release
 
-当前版本：`v0.1.0`。
+当前版本：`v0.2.0`。
 
 Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag 后自动构建并发布。
 
@@ -37,6 +37,7 @@ Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag �
 - 已新增 `lib/src/core/session/marauder_session.dart`，统一管理连接状态、命令队列、流式扫描、停止命令、超时和断线清理；页面层开始通过会话事件接收状态和协议输出。
 - WiFi、Bluetooth、SD 页面视图已分别拆分到 `lib/src/features/wifi`、`lib/src/features/bluetooth`、`lib/src/features/storage`，主页面只保留状态和回调适配。
 - 已删除主页面中迁移后的旧 WiFi/Bluetooth/SD 页面实现；页面 feature 拆分清理完成。
+- v0.2.0 增加 WiFi AP 搜索和 RSSI/信道/名称排序、Bluetooth/SD Controller、终端日志复制，以及 SD 文件分片传输协议提案文档。
 
 ## 硬件前置条件
 
@@ -75,6 +76,8 @@ CI 固定使用 Flutter 3.44.9 stable。
 ## 固件协议范围
 
 控制端复用仓库中的 Marauder CLI，不重写 ESP32 的 WiFi/BLE 射频功能。首期基于 ESP32 LDDB 能力矩阵；GPS、直接上传等固件未启用的能力必须在 UI 中保持不可用。
+
+SD 文件完整下载协议提案见 [docs/sd-file-transfer-protocol.md](docs/sd-file-transfer-protocol.md)。当前固件未实现该协议，应用仍只提供目录浏览。
 
 ## 安全边界
 

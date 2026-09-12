@@ -18,6 +18,7 @@ class MarauderTerminalView extends StatelessWidget {
     required this.onSend,
     required this.onPreviousCommand,
     required this.onNextCommand,
+    required this.onCopyLog,
   });
 
   final List<({String text, bool isError})> logs;
@@ -33,6 +34,7 @@ class MarauderTerminalView extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onPreviousCommand;
   final VoidCallback onNextCommand;
+  final VoidCallback onCopyLog;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +47,7 @@ class MarauderTerminalView extends StatelessWidget {
           child: Row(children: [
             const Expanded(child: Text('MARAUDER TERMINAL', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
             M3EIconButton(icon: const Icon(Icons.delete_sweep), variant: M3EIconButtonVariant.standard, onPressed: onClear, tooltip: '清屏'),
+            M3EIconButton(icon: const Icon(Icons.copy), variant: M3EIconButtonVariant.standard, onPressed: onCopyLog, tooltip: '复制日志'),
             M3EIconButton(
               icon: Icon(autoScroll ? Icons.vertical_align_bottom : Icons.pause),
               variant: M3EIconButtonVariant.standard,

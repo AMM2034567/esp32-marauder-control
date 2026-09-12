@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'src/core/models/device_models.dart';
 import 'src/core/models/transport_models.dart';
@@ -15,6 +16,7 @@ import 'src/core/transport/serial_transport.dart';
 import 'src/core/transport/android_usb_serial_transport.dart';
 import 'src/features/terminal/marauder_terminal_view.dart';
 import 'src/features/wifi/wifi_workbench_view.dart';
+import 'src/features/wifi/wifi_controller.dart';
 import 'src/features/bluetooth/bluetooth_workbench_view.dart';
 import 'src/features/storage/storage_browser_view.dart';
 
@@ -65,6 +67,8 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
   bool _bluetoothScanning = false;
   final List<String> _apDetails = <String>[];
   int _wifiSubtab = 0;
+  String _wifiQuery = '';
+  WifiSort _wifiSort = WifiSort.rssi;
   int? _detailApIndex;
   int? _stationApIndex;
   String? _stationApSsid;
@@ -414,6 +418,13 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
     setState(() => _logs.clear());
   }
 
+  Future<void> _copyTerminalLog() async {
+    await Clipboard.setData(ClipboardData(text: _logs.map((entry) => entry.text).join('\n')));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('终端日志已复制')));
+    }
+  }
+
   void _showPreviousCommand() {
     if (_commandHistory.isEmpty) return;
     setState(() {
@@ -523,6 +534,10 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         onRefresh: _loadWifiData,
         onStop: _stopWifiScan,
         onApTap: _showApDetails,
+        query: _wifiQuery,
+        sort: _wifiSort,
+        onQueryChanged: (value) => setState(() => _wifiQuery = value),
+        onSortChanged: (value) => setState(() => _wifiSort = value),
       );
 
   Widget _bluetoothView() => BluetoothWorkbenchView(
@@ -663,6 +678,7 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         onSend: () => _sendCommand(_terminalInputController.text),
         onPreviousCommand: _showPreviousCommand,
         onNextCommand: _showNextCommand,
+        onCopyLog: _copyTerminalLog,
       );
 
   Widget _logsPage() => _logList(showEmptyHint: '暂无日志');

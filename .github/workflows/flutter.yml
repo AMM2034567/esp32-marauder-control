@@ -114,10 +114,10 @@ jobs:
             - USB Host / OTG
             - 115200 8N1
             - Marauder firmware handshake and capability detection
-            - WiFi AP/Station/SSID read-only workbench
+            - WiFi AP/Station/SSID read-only workbench with search and sorting
             - Bluetooth/Flipper read-only scanning
             - SD read-only directory browsing
-            - Terminal command history and automatic scrolling
+            - Terminal command history, automatic scrolling, and log copy
 
             ### 使用限制
             - 仅 Android。
