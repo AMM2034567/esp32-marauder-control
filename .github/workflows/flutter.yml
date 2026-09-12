@@ -3,6 +3,7 @@ name: Flutter Android CI
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
     branches: [main]
 
@@ -11,6 +12,7 @@ permissions:
 
 jobs:
   validate:
+    name: Analyze and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,12 +34,93 @@ jobs:
       - name: Test
         run: flutter test
 
+  debug-apk:
+    name: Build debug APK
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build debug APK
         run: flutter build apk --debug
 
-      - name: Upload debug APK
+      - name: Calculate SHA-256
+        run: sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/app/outputs/flutter-apk/app-debug.apk.sha256
+
+      - name: Upload debug artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: marauder-control-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: marauder-control-debug-${{ github.sha }}
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/flutter-apk/app-debug.apk.sha256
           if-no-files-found: error
+
+  release:
+    name: Build and publish release APK
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Rename release APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk marauder-control-${{ github.ref_name }}.apk
+
+      - name: Calculate SHA-256
+        run: sha256sum marauder-control-${{ github.ref_name }}.apk > marauder-control-${{ github.ref_name }}.apk.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            marauder-control-${{ github.ref_name }}.apk
+            marauder-control-${{ github.ref_name }}.apk.sha256
+          body: |
+            ## Marauder Control ${{ github.ref_name }}
+
+            Android Flutter USB serial controller for ESP32 Marauder.
+
+            ### 首期支持
+            - ESP32 LDDB + CH340/CH341 USB-UART
+            - USB Host / OTG
+            - 115200 8N1
+            - Marauder firmware handshake and capability detection
+            - WiFi AP/Station/SSID read-only workbench
+            - Bluetooth/Flipper read-only scanning
+            - SD read-only directory browsing
+            - Terminal command history and automatic scrolling
+
+            ### 使用限制
+            - 仅 Android。
+            - 需要 USB OTG 和授权设备。
+            - GPS、直接上传和危险攻击功能未启用。
+            - 完整 PCAP/JSON 下载协议尚未提供。

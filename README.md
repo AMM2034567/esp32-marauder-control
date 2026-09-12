@@ -2,6 +2,14 @@
 
 仅 Android 的 Flutter 控制端，用 USB Host 串口连接 ESP32 Marauder。
 
+## 首个 Release
+
+当前版本：`v0.1.0`。
+
+Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag 后自动构建并发布。
+
+仓库：[AMM2034567/esp32-marauder-control](https://github.com/AMM2034567/esp32-marauder-control)
+
 ## 当前状态
 
 - Material 3 控制台、终端和日志页面。
@@ -52,6 +60,17 @@ flutter build apk --debug
 - `lib/src/core/transport`：串口 transport 抽象、mock 和 Android channel adapter。
 - `android/app/src/main/kotlin`：USB Host、权限、CH340 串口读写和 MethodChannel/EventChannel 边界。
 - `test`：协议和 UI 测试。
+
+## CI
+
+GitHub Actions 会在 `main` 分支 push、Pull Request 和版本 tag 时执行：
+
+- `flutter analyze`
+- `flutter test`
+- `flutter build apk --debug`
+- 版本 tag 额外构建 Release APK、生成 SHA-256 并创建 GitHub Release
+
+CI 固定使用 Flutter 3.44.9 stable。
 
 ## 固件协议范围
 
