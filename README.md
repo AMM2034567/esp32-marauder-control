@@ -4,9 +4,9 @@
 
 ## 首个 Release
 
-当前版本：`v0.2.0`。
+当前版本：`v0.3.1`。
 
-Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag 后自动构建并发布。
+Release APK 和 SHA-256 校验文件只由 GitHub Actions 在推送 `v*.*.*` tag 后自动构建并发布；本地构建产物不手动上传到 GitHub Release。
 
 仓库：[AMM2034567/esp32-marauder-control](https://github.com/AMM2034567/esp32-marauder-control)
 
@@ -38,7 +38,7 @@ Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag �
 - WiFi、Bluetooth、SD 页面视图已分别拆分到 `lib/src/features/wifi`、`lib/src/features/bluetooth`、`lib/src/features/storage`，主页面只保留状态和回调适配。
 - 已删除主页面中迁移后的旧 WiFi/Bluetooth/SD 页面实现；页面 feature 拆分清理完成。
 - v0.2.0 增加 WiFi AP 搜索和 RSSI/信道/名称排序、Bluetooth/SD Controller、终端日志复制，以及 SD 文件分片传输协议提案文档。
-- v0.3.0 已将设备探测、终端历史、无线数据和存储数据状态迁移到独立 Controller；主页面仅保留会话事件和视图组合。
+- v0.3.1 已将设备探测、终端历史、无线数据和存储数据状态迁移到独立 Controller；主页面仅保留会话事件和视图组合。
 - Release 只由 GitHub Actions 在版本 tag 上构建和上传；本地 APK 不手动上传 Release，避免重复资产。
 - v0.3.0 开发中：增加 Device/Probe Controller、Controller 单元测试、终端日志复制和 SD 导出实现边界文档。
 
