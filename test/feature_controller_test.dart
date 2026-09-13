@@ -2,9 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:marauder_control/src/core/models/radio_models.dart';
 import 'package:marauder_control/src/core/models/storage_models.dart';
 import 'package:marauder_control/src/core/models/wifi_models.dart';
+import 'package:marauder_control/src/core/models/device_models.dart';
 import 'package:marauder_control/src/features/bluetooth/bluetooth_controller.dart';
 import 'package:marauder_control/src/features/storage/storage_controller.dart';
 import 'package:marauder_control/src/features/wifi/wifi_controller.dart';
+import 'package:marauder_control/src/features/dashboard/probe_controller.dart';
 
 void main() {
   test('filters and sorts WiFi access points', () {
@@ -32,5 +34,17 @@ void main() {
     expect(controller.totalBytes(files), 30);
     expect(controller.parentPath('/logs/run'), '/logs');
     expect(controller.parentPath('/logs'), '/');
+  });
+
+  test('extracts Marauder banner and machine capabilities', () {
+    const controller = ProbeController();
+    final banner = controller.applyBanner(DeviceCapabilities(), 'ESP32 Marauder v1.16.0');
+    expect(banner.firmwareVersion, 'v1.16.0');
+    expect(banner.boardName, 'ESP32 Marauder');
+    final machine = controller.applyMachine(banner, {
+      'firmware': 'v1.16.0',
+      'capabilities': ['spiffs-backup'],
+    });
+    expect(machine.supports(MarauderCapability.gps), isFalse);
   });
 }

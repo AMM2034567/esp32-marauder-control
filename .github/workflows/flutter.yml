@@ -117,7 +117,7 @@ jobs:
             - WiFi AP/Station/SSID read-only workbench with search and sorting
             - Bluetooth/Flipper read-only scanning
             - SD read-only directory browsing
-            - Terminal command history, automatic scrolling, and log copy
+            - Device/Probe controllers, terminal command history, automatic scrolling, and log copy
 
             ### 使用限制
             - 仅 Android。

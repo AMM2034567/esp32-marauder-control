@@ -38,6 +38,7 @@ Release APK 和 SHA-256 校验文件由 GitHub Actions 在推送 `v*.*.*` tag �
 - WiFi、Bluetooth、SD 页面视图已分别拆分到 `lib/src/features/wifi`、`lib/src/features/bluetooth`、`lib/src/features/storage`，主页面只保留状态和回调适配。
 - 已删除主页面中迁移后的旧 WiFi/Bluetooth/SD 页面实现；页面 feature 拆分清理完成。
 - v0.2.0 增加 WiFi AP 搜索和 RSSI/信道/名称排序、Bluetooth/SD Controller、终端日志复制，以及 SD 文件分片传输协议提案文档。
+- v0.3.0 开发中：增加 Device/Probe Controller、Controller 单元测试、终端日志复制和 SD 导出实现边界文档。
 
 ## 硬件前置条件
 
@@ -78,6 +79,8 @@ CI 固定使用 Flutter 3.44.9 stable。
 控制端复用仓库中的 Marauder CLI，不重写 ESP32 的 WiFi/BLE 射频功能。首期基于 ESP32 LDDB 能力矩阵；GPS、直接上传等固件未启用的能力必须在 UI 中保持不可用。
 
 SD 文件完整下载协议提案见 [docs/sd-file-transfer-protocol.md](docs/sd-file-transfer-protocol.md)。当前固件未实现该协议，应用仍只提供目录浏览。
+
+v0.3.0 导出实现边界见 [docs/v0.3.0-sd-export.md](docs/v0.3.0-sd-export.md)。
 
 ## 安全边界
 
