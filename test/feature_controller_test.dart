@@ -6,6 +6,7 @@ import 'package:marauder_control/src/core/models/device_models.dart';
 import 'package:marauder_control/src/features/bluetooth/bluetooth_controller.dart';
 import 'package:marauder_control/src/features/storage/storage_controller.dart';
 import 'package:marauder_control/src/features/wifi/wifi_controller.dart';
+import 'package:marauder_control/src/core/protocol/marauder_protocol.dart';
 import 'package:marauder_control/src/features/dashboard/probe_controller.dart';
 
 void main() {
@@ -46,5 +47,18 @@ void main() {
       'capabilities': ['spiffs-backup'],
     });
     expect(machine.supports(MarauderCapability.gps), isFalse);
+  });
+
+  test('parses firmware banner and machine capabilities', () {
+    const probe = ProbeController();
+    var capabilities = MarauderCommandCatalog.inferCapabilities();
+    capabilities = probe.applyBanner(capabilities, 'ESP32 Marauder v1.16.0');
+    expect(capabilities.firmwareVersion, 'v1.16.0');
+    capabilities = probe.applyMachine(capabilities, {
+      'firmware': 'v1.16.0',
+      'capabilities': ['gps'],
+    });
+    expect(capabilities.supports(MarauderCapability.gps), isTrue);
+    expect(capabilities.supports(MarauderCapability.directUpload), isFalse);
   });
 }

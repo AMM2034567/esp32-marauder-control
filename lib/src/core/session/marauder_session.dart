@@ -10,13 +10,15 @@ class MarauderSessionEvent {
   const MarauderSessionEvent.log(this.text, {this.isError = false})
       : type = MarauderSessionEventType.log,
         payload = null,
-        state = null;
+        state = null,
+        info = null;
   const MarauderSessionEvent.protocol(this.payload)
       : type = MarauderSessionEventType.protocol,
         text = null,
         isError = false,
-        state = null;
-  const MarauderSessionEvent.state(this.state)
+        state = null,
+        info = null;
+  const MarauderSessionEvent.state(this.state, [this.info])
       : type = MarauderSessionEventType.state,
         text = null,
         payload = null,
@@ -27,6 +29,7 @@ class MarauderSessionEvent {
   final bool isError;
   final MarauderEvent? payload;
   final MarauderSessionState? state;
+  final Map<String, Object?>? info;
 }
 
 enum MarauderSessionEventType { log, protocol, state }
@@ -150,7 +153,7 @@ class MarauderSession {
   void _onTransportEvent(TransportEvent event) {
     switch (event.type) {
       case 'connected':
-        _setState(MarauderSessionState.connected);
+        _setState(MarauderSessionState.connected, event.info);
       case 'disconnected':
         _clearQueue();
         _setState(MarauderSessionState.disconnected);
@@ -174,9 +177,9 @@ class MarauderSession {
     _activeOperation = null;
   }
 
-  void _setState(MarauderSessionState state) {
+  void _setState(MarauderSessionState state, [Map<String, Object?>? info]) {
     _state = state;
-    _events.add(MarauderSessionEvent.state(state));
+    _events.add(MarauderSessionEvent.state(state, info));
   }
 
   void _emitLog(String text, {bool isError = false}) {

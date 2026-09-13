@@ -8,8 +8,6 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'src/core/models/device_models.dart';
 import 'src/core/models/transport_models.dart';
 import 'src/core/models/wifi_models.dart';
-import 'src/core/models/storage_models.dart';
-import 'src/core/models/radio_models.dart';
 import 'src/core/protocol/marauder_protocol.dart';
 import 'src/core/session/marauder_session.dart';
 import 'src/core/transport/serial_transport.dart';
@@ -19,6 +17,11 @@ import 'src/features/wifi/wifi_workbench_view.dart';
 import 'src/features/wifi/wifi_controller.dart';
 import 'src/features/bluetooth/bluetooth_workbench_view.dart';
 import 'src/features/storage/storage_browser_view.dart';
+import 'src/features/storage/storage_controller.dart';
+import 'src/features/terminal/terminal_controller.dart';
+import 'src/features/radio_data_controller.dart';
+import 'src/features/dashboard/device_controller.dart';
+import 'src/features/dashboard/probe_controller.dart';
 
 void main() => runApp(const MarauderApp());
 
@@ -49,36 +52,28 @@ class MarauderHomePage extends StatefulWidget {
 class _MarauderHomePageState extends State<MarauderHomePage> {
   late final SerialTransport _transport;
   late final MarauderSession _session;
+  late final DeviceController _deviceController;
+  final ProbeController _probeController = const ProbeController();
   final List<MarauderLogEntry> _logs = <MarauderLogEntry>[];
   final List<UsbDeviceInfo> _devices = <UsbDeviceInfo>[];
   StreamSubscription<MarauderSessionEvent>? _sessionSubscription;
   SerialConnectionState _connectionState = SerialConnectionState.disconnected;
   DeviceCapabilities _capabilities = MarauderCommandCatalog.inferCapabilities();
   int _tabIndex = 0;
-  final List<WifiAccessPoint> _accessPoints = <WifiAccessPoint>[];
+  final RadioDataController _radioData = RadioDataController();
   WifiScanState _wifiScanState = WifiScanState.idle;
-  final List<SdFileEntry> _sdFiles = <SdFileEntry>[];
-  String _sdPath = '/';
-  final List<WifiStation> _stations = <WifiStation>[];
-  final List<WifiSsid> _ssids = <WifiSsid>[];
-  final List<BluetoothDeviceInfo> _bluetoothDevices = <BluetoothDeviceInfo>[];
-  final List<FlipperDeviceInfo> _flipperDevices = <FlipperDeviceInfo>[];
+  final StorageDataController _storageData = StorageDataController();
+  final TerminalController _terminalData = TerminalController();
   int _radioSubtab = 0;
   bool _bluetoothScanning = false;
-  final List<String> _apDetails = <String>[];
   int _wifiSubtab = 0;
   String _wifiQuery = '';
   WifiSort _wifiSort = WifiSort.rssi;
-  int? _detailApIndex;
-  int? _stationApIndex;
-  String? _stationApSsid;
   String? _lastProbeError;
   bool _probeInProgress = false;
   final ScrollController _terminalScrollController = ScrollController();
   final TextEditingController _terminalInputController = TextEditingController();
-  final List<String> _commandHistory = <String>[];
-  int _historyIndex = -1;
-  bool _terminalAutoScroll = true;
+  bool get _terminalAutoScroll => _terminalData.autoScroll;
   String? _activeOperation;
 
   bool get _operationLocked => _activeOperation != null;
@@ -103,6 +98,7 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
     super.initState();
     _transport = AndroidUsbSerialTransport();
     _session = MarauderSession(_transport);
+    _deviceController = DeviceController(session: _session);
     _sessionSubscription = _session.events.listen(_handleSessionEvent);
     _refreshDevices();
   }
@@ -120,8 +116,8 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
   }
 
   Future<void> _refreshDevices() async {
-    final devices = await _transport.listDevices();
-    if (mounted) setState(() => _devices..clear()..addAll(devices));
+    await _deviceController.refreshDevices();
+    if (mounted) setState(() => _devices..clear()..addAll(_deviceController.devices));
   }
 
   Future<void> _connect() async {
@@ -132,7 +128,7 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
     }
     setState(() => _connectionState = SerialConnectionState.connecting);
     try {
-      await _session.connect(_devices.first.id);
+      await _deviceController.connect();
       _addLog('已发起连接，等待 USB 权限或串口事件');
     } catch (error) {
       setState(() => _connectionState = SerialConnectionState.error);
@@ -172,7 +168,7 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
 
   Future<void> _refreshAccessPoints() async {
     if (_operationLocked) return;
-    _accessPoints.clear();
+    _radioData.accessPoints.clear();
     await _sendCommand('list -a');
   }
 
@@ -195,23 +191,12 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
     });
     try {
       _addLog('开始探测 Marauder 固件和命令能力');
-      await _sendCommand('protocolinfo --machine app_probe');
-      await _sendCommand('help');
-      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      await _deviceController.probe((command) => _sendCommand(command));
       if (mounted) {
         setState(() {
-          if (_capabilities.firmwareVersion == null) {
-            _lastProbeError = '未从串口输出中识别固件版本';
-            _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.failed);
-          } else {
-            _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.ready);
-          }
+          _capabilities = _deviceController.capabilities;
+          _lastProbeError = _deviceController.probeError;
         });
-      }
-    } catch (error) {
-      _addLog('固件探测失败：$error', isError: true);
-      if (mounted) {
-        setState(() => _capabilities = _capabilities.copyWith(probeState: DeviceProbeState.failed));
       }
     } finally {
       if (mounted) {
@@ -227,6 +212,10 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         _addLog(event.text ?? '', isError: event.isError);
       case MarauderSessionEventType.state:
         final state = event.state!;
+        if (state == MarauderSessionState.connected && event.info != null) {
+          _deviceController.applyConnectionInfo(event.info!);
+          _capabilities = _deviceController.capabilities;
+        }
         setState(() => _connectionState = switch (state) {
           MarauderSessionState.connected => SerialConnectionState.connected,
           MarauderSessionState.connecting => SerialConnectionState.connecting,
@@ -250,39 +239,25 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         final station = MarauderProtocol.parseStationLine(text);
         final stationHeader = MarauderProtocol.parseStationGroupHeader(text);
         if (stationHeader != null) {
-          _stationApIndex = stationHeader.index;
-          _stationApSsid = stationHeader.ssid;
+          _radioData.stationApIndex = stationHeader.index;
+          _radioData.stationApSsid = stationHeader.ssid;
         }
-        if (ssid != null) _upsertSsid(ssid);
-        if (bluetooth != null) _upsertBluetooth(bluetooth);
-        if (flipper != null) _upsertFlipper(flipper);
+        if (ssid != null) _radioData.upsertSsid(ssid);
+        if (bluetooth != null) _radioData.upsertBluetooth(bluetooth);
+        if (flipper != null) _radioData.upsertFlipper(flipper);
         if (station != null) {
-          _upsertStation(MarauderProtocol.parseStationLine(text, apIndex: _stationApIndex, apSsid: _stationApSsid)!);
+          _radioData.upsertStation(MarauderProtocol.parseStationLine(text, apIndex: _radioData.stationApIndex, apSsid: _radioData.stationApSsid)!);
         }
-        if (_detailApIndex != null && text.isNotEmpty && !MarauderProtocol.isCommandEcho(text)) {
-          setState(() => _apDetails.add(text));
+        if (_radioData.detailApIndex != null && text.isNotEmpty && !MarauderProtocol.isCommandEcho(text)) {
+          setState(() => _radioData.apDetails.add(text));
         }
         final file = MarauderProtocol.parseSdFileLine(text);
         if (file != null) {
-          final existing = _sdFiles.indexWhere((item) => item.path == file.path);
-          setState(() {
-            if (existing >= 0) {
-              _sdFiles[existing] = file;
-            } else {
-              _sdFiles.add(file);
-            }
-          });
+          _storageData.upsert(file);
         }
         final ap = MarauderProtocol.parseAccessPointLine(text);
         if (ap != null) {
-          final existing = _accessPoints.indexWhere((item) => item.index == ap.index);
-          setState(() {
-            if (existing >= 0) {
-              _accessPoints[existing] = ap;
-            } else {
-              _accessPoints.add(ap);
-            }
-          });
+          _radioData.upsertAccessPoint(ap);
         }
         if (MarauderProtocol.isScanStarted(text)) setState(() => _wifiScanState = WifiScanState.running);
         if (MarauderProtocol.isScanStopped(text)) {
@@ -295,10 +270,8 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         }
         final version = MarauderProtocol.extractFirmwareVersion(text);
         if (version != null || MarauderProtocol.isMarauderBanner(text)) {
-          setState(() => _capabilities = _capabilities.copyWith(
-                firmwareVersion: version ?? _capabilities.firmwareVersion,
-                boardName: 'ESP32 Marauder',
-              ));
+          setState(() => _capabilities = _probeController.applyBanner(_capabilities, text));
+          _deviceController.capabilities = _capabilities;
         }
       case PromptEvent():
         _addLog('设备就绪');
@@ -327,39 +300,15 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
               capabilities.remove(MarauderCapability.directUpload);
             }
           }
-          setState(() => _capabilities = _capabilities.copyWith(
-                firmwareVersion: version,
-                boardName: board,
-                capabilities: capabilities,
-              ));
+          setState(() => _capabilities = _probeController.applyMachine(_capabilities, payload));
+          _deviceController.capabilities = _capabilities;
         }
     }
   }
 
-  void _upsertStation(WifiStation value) {
-    final index = _stations.indexWhere((item) => item.index == value.index);
-    setState(() => index >= 0 ? _stations[index] = value : _stations.add(value));
-  }
-
-  void _upsertSsid(WifiSsid value) {
-    final index = _ssids.indexWhere((item) => item.index == value.index);
-    setState(() => index >= 0 ? _ssids[index] = value : _ssids.add(value));
-  }
-
-  void _upsertBluetooth(BluetoothDeviceInfo value) {
-    final index = _bluetoothDevices.indexWhere((item) => item.index == value.index);
-    setState(() => index >= 0 ? _bluetoothDevices[index] = value : _bluetoothDevices.add(value));
-  }
-
-  void _upsertFlipper(FlipperDeviceInfo value) {
-    final index = _flipperDevices.indexWhere((item) => item.index == value.index);
-    setState(() => index >= 0 ? _flipperDevices[index] = value : _flipperDevices.add(value));
-  }
-
   Future<void> _loadWifiData() async {
     if (_operationLocked) return;
-    _stations.clear();
-    _ssids.clear();
+    _radioData.clearWifiLists();
     if (_wifiSubtab == 0) {
       await _refreshAccessPoints();
     } else if (_wifiSubtab == 1) {
@@ -372,8 +321,8 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
   Future<void> _showApDetails(WifiAccessPoint ap) async {
     if (_operationLocked) return;
     setState(() {
-      _detailApIndex = ap.index;
-      _apDetails.clear();
+      _radioData.detailApIndex = ap.index;
+      _radioData.apDetails.clear();
     });
     // This command is queued before the lock is exposed to subsequent user taps.
     await _sendCommand('info -a ${ap.index}');
@@ -381,16 +330,16 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
 
   Future<void> _startBluetoothScan() async {
     if (_operationLocked) return;
-    _bluetoothDevices.clear();
-    _flipperDevices.clear();
+    _radioData.bluetoothDevices.clear();
+    _radioData.flipperDevices.clear();
     setState(() => _bluetoothScanning = true);
     await _sendCommand('sniffbt');
   }
 
   Future<void> _refreshBluetoothDevices() async {
     if (_operationLocked) return;
-    _bluetoothDevices.clear();
-    _flipperDevices.clear();
+    _radioData.bluetoothDevices.clear();
+    _radioData.flipperDevices.clear();
     await _sendCommand(_radioSubtab == 0 ? 'list -b' : 'list -f');
     _endOperation();
   }
@@ -426,23 +375,24 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
   }
 
   void _showPreviousCommand() {
-    if (_commandHistory.isEmpty) return;
+    if (_terminalData.history.isEmpty) return;
     setState(() {
-      _historyIndex = _historyIndex < 0 ? _commandHistory.length - 1 : (_historyIndex - 1).clamp(0, _commandHistory.length - 1);
-      _terminalInputController.text = _commandHistory[_historyIndex];
+      final command = _terminalData.previous();
+      if (command == null) return;
+      _terminalInputController.text = command;
       _terminalInputController.selection = TextSelection.fromPosition(TextPosition(offset: _terminalInputController.text.length));
     });
   }
 
   void _showNextCommand() {
-    if (_commandHistory.isEmpty || _historyIndex < 0) return;
+    if (_terminalData.history.isEmpty || _terminalData.historyIndex < 0) return;
     setState(() {
-      _historyIndex++;
-      if (_historyIndex >= _commandHistory.length) {
-        _historyIndex = -1;
+      final command = _terminalData.next();
+      if (command == null) return;
+      if (command.isEmpty) {
         _terminalInputController.clear();
       } else {
-        _terminalInputController.text = _commandHistory[_historyIndex];
+        _terminalInputController.text = command;
         _terminalInputController.selection = TextSelection.fromPosition(TextPosition(offset: _terminalInputController.text.length));
       }
     });
@@ -524,11 +474,11 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
           WifiScanState.error => '错误',
         },
         selectedTab: _wifiSubtab,
-        accessPoints: _accessPoints,
-        stations: _stations,
-        ssids: _ssids,
-        detailApIndex: _detailApIndex,
-        apDetails: _apDetails,
+        accessPoints: _radioData.accessPoints,
+        stations: _radioData.stations,
+        ssids: _radioData.ssids,
+        detailApIndex: _radioData.detailApIndex,
+        apDetails: _radioData.apDetails,
         onTabChanged: (tab) { setState(() => _wifiSubtab = tab); _loadWifiData(); },
         onScan: () => _sendCommand('scanall'),
         onRefresh: _loadWifiData,
@@ -544,8 +494,8 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         connected: _connectionState == SerialConnectionState.connected,
         scanning: _bluetoothScanning,
         selectedTab: _radioSubtab,
-        bluetoothDevices: _bluetoothDevices,
-        flipperDevices: _flipperDevices,
+        bluetoothDevices: _radioData.bluetoothDevices,
+        flipperDevices: _radioData.flipperDevices,
         onTabChanged: (tab) { setState(() => _radioSubtab = tab); _refreshBluetoothDevices(); },
         onScan: _startBluetoothScan,
         onRefresh: _refreshBluetoothDevices,
@@ -554,14 +504,13 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
 
   Widget _storageView() => StorageBrowserView(
         connected: _connectionState == SerialConnectionState.connected,
-        path: _sdPath,
-        files: _sdFiles,
-        onRefresh: () { setState(() => _sdFiles.clear()); _sendCommand('ls $_sdPath'); },
-        onEnterDirectory: (path) { setState(() { _sdPath = path; _sdFiles.clear(); }); _sendCommand('ls $path'); },
+        path: _storageData.path,
+        files: _storageData.files,
+        onRefresh: () { setState(() => _storageData.clear()); _sendCommand('ls ${_storageData.path}'); },
+        onEnterDirectory: (path) { setState(() { _storageData.path = path; _storageData.clear(); }); _sendCommand('ls $path'); },
         onParent: () {
-          final parent = _sdPath.substring(0, _sdPath.lastIndexOf('/'));
-          setState(() { _sdPath = parent.isEmpty ? '/' : parent; _sdFiles.clear(); });
-          _sendCommand('ls $_sdPath');
+          setState(() { _storageData.path = const StorageController().parentPath(_storageData.path); _storageData.clear(); });
+          _sendCommand('ls ${_storageData.path}');
         },
       );
 
@@ -669,7 +618,7 @@ class _MarauderHomePageState extends State<MarauderHomePage> {
         operationLocked: _operationLocked,
         stopAllowed: _stopAllowed,
         autoScroll: _terminalAutoScroll,
-        onAutoScrollChanged: (value) => setState(() => _terminalAutoScroll = value),
+        onAutoScrollChanged: (value) => setState(() => _terminalData.autoScroll = value),
         onClear: _clearTerminal,
         onSubmitted: (value) {
           _sendCommand(value);
